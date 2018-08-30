@@ -1,0 +1,11 @@
+.textarea_large {
+    height: 20em;
+}
+
+.layui_fieldset_padding {
+    padding: 1em 0 0 0;
+}
+
+.captchaImg {
+    cursor: pointer;
+}

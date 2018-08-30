@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/tx
+        http://www.springframework.org/schema/tx/spring-tx.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <bean class="org.springframework.context.support.PropertySourcesPlaceholderConfigurer">
+        <property name="locations">
+            <list>
+                <value>classpath:config/jdbc.properties</value>
+            </list>
+        </property>
+        <property name="fileEncoding" value="UTF-8"/>
+    </bean>
+
+    <bean id="hikariConfig" class="com.zaxxer.hikari.HikariConfig">
+        <property name="dataSourceClassName" value="${dataSource.dataSourceClassName}"/>
+        <property name="minimumIdle" value="${dataSource.minimumIdle}"/>
+        <property name="maximumPoolSize" value="${dataSource.maximumPoolSize}"/>
+        <property name="dataSourceProperties">
+            <props>
+                <prop key="url">${dataSource.jdbcUrl}</prop>
+                <prop key="user">${dataSource.username}</prop>
+                <prop key="password">${dataSource.password}</prop>
+            </props>
+        </property>
+    </bean>
+
+    <bean id="dataSource" class="com.zaxxer.hikari.HikariDataSource" destroy-method="close">
+        <constructor-arg ref="hikariConfig"/>
+    </bean>
+
+    <bean id="txManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <tx:annotation-driven transaction-manager="txManager"/>
+
+    <bean id="namedParameterJdbcTemplate" class="org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate">
+        <constructor-arg name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <context:component-scan base-package="com.ly.leadershipmailbox">
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+
+
+    <bean id="leadershipMailboxService" class="com.ly.leadershipmailbox.service.impl.LeadershipMailboxServiceImpl">
+        <property name="leadershipMailboxDao" ref="LeadershipMailboxDao"/>
+        <property name="querySql">
+            <value>
+                <![CDATA[
+                   SELECT T.*,
+                          TO_CHAR(T.SUBMITDATE, 'yyyy-MM-dd hh24:mi:ss') AS SUBMITDATESTR,
+                          TO_CHAR(T.REPLYDATE, 'yyyy-MM-dd hh24:mi:ss') AS REPLYDATESTR
+                     FROM LY_LEADERSHIP_MAILBOX T
+                    ORDER BY T.SUBMITDATE DESC
+                ]]>
+            </value>
+        </property>
+        <property name="querySingleSql">
+            <value>
+                <![CDATA[
+                    SELECT T.*,                          
+                    	  TO_CHAR(T.SUBMITDATE, 'yyyy-MM-dd hh24:mi:ss') AS SUBMITDATESTR,
+                          TO_CHAR(T.REPLYDATE, 'yyyy-MM-dd hh24:mi:ss') AS REPLYDATESTR
+                      FROM LY_LEADERSHIP_MAILBOX T
+                     WHERE T.EMAIL = :email
+                       AND T.QUERYKEY = :querykey
+                ]]>
+            </value>
+        </property>
+        <property name="insertSql">
+            <value>
+                <![CDATA[
+                    INSERT INTO LY_LEADERSHIP_MAILBOX
+                      (TITLE,
+                       CONTENT,
+                       TYPE,
+                       NICKNAME,
+                       MOBILEPHONE,
+                       EMAIL,
+                       STATE,
+                       QUERYKEY,
+                       REPLY,
+                       SUBMITDATE,
+                       REPLYDATE)
+                    VALUES
+                      (:title,
+                       :content,
+                       :type,
+                       :nickname,
+                       :mobilephone,
+                       :email,
+                       :state,
+                       :querykey,
+                       :reply,
+                       :submitdate,
+                       :replydate)
+                ]]>
+            </value>
+        </property>
+        <property name="updateSql">
+            <value>
+                <![CDATA[
+                    UPDATE LY_LEADERSHIP_MAILBOX T
+                       SET T.REPLY = :reply, T.REPLYDATE = :replydate, T.STATE = :state
+                     WHERE T.EMAIL = :email
+                       AND T.QUERYKEY = :querykey
+                ]]>
+            </value>
+        </property>
+        <property name="delSql">
+            <value>
+                <![CDATA[
+                    DELETE LY_LEADERSHIP_MAILBOX T
+                     WHERE T.EMAIL = :email
+                       AND T.QUERYKEY = :querykey
+                ]]>
+            </value>
+        </property>
+        <property name="loginSql">
+            <value>
+                <![CDATA[
+                    SELECT T.USERNAME, T.DISPLAYNAME,T.USERTYPE
+                      FROM LY_LEADERSHIP_USER T
+                     WHERE T.USERNAME = :username
+                       AND T.PASSWORD = :password
+                ]]>
+            </value>
+        </property>
+        <property name="allUserSql">
+            <value>
+                <![CDATA[
+                    SELECT T.USERNAME, T.DISPLAYNAME
+                      FROM LY_LEADERSHIP_USER T
+                      WHERE T.USERNAME <> :username
+                     ORDER BY T.USERNAME
+                ]]>
+            </value>
+        </property>
+        <property name="userForwardSql">
+            <value>
+                <![CDATA[
+                    SELECT *
+                      FROM LY_LEADERSHIP_MAILFORWARD T
+                     WHERE T.EMAIL = :email
+                       AND T.QUERYKEY = :querykey
+                     ORDER BY T.FORWARDORDER
+                ]]>
+            </value>
+        </property>
+        <property name="userForwardSaveSql">
+            <value>
+                <![CDATA[
+                    INSERT INTO LY_LEADERSHIP_MAILFORWARD
+                      (EMAIL, QUERYKEY, FORWARDORDER, FROMUSERNAME, TOUSERNAME)
+                    VALUES
+                      (:email, :querykey, :forwardorder, :fromusername, :tousername)
+                        ]]>
+            </value>
+        </property>
+        <property name="userForwardNewestSql">
+            <value>
+                <![CDATA[
+                    SELECT T.FROMUSERNAME,T.TOUSERNAME,T.FORWARDORDER
+                      FROM LY_LEADERSHIP_MAILFORWARD T
+                     WHERE T.EMAIL = :email
+                       AND T.QUERYKEY = :querykey
+                       AND T.FORWARDORDER = :forwardorder
+                ]]>
+            </value>
+        </property>
+        <property name="userDisplayNameSql">
+            <value>
+                <![CDATA[
+                    SELECT T.DISPLAYNAME FROM LY_LEADERSHIP_USER T WHERE T.USERNAME = :username
+                ]]>
+            </value>
+        </property>
+        <property name="queryTeacherSql">
+            <value>
+                <![CDATA[
+                   SELECT T.*,
+                          TO_CHAR(T.SUBMITDATE, 'yyyy-MM-dd hh24:mi:ss') AS SUBMITDATESTR,
+                          TO_CHAR(T.REPLYDATE, 'yyyy-MM-dd hh24:mi:ss') AS REPLYDATESTR
+                     FROM LY_LEADERSHIP_MAILBOX T,(SELECT B1.*
+													FROM LY_LEADERSHIP_MAILFORWARD B1,													
+														(SELECT T.EMAIL,T.QUERYKEY,MAX(T.FORWARDORDER) AS FORWARDORDER
+														FROM LY_LEADERSHIP_MAILFORWARD T
+														GROUP BY T.EMAIL ,T.QUERYKEY) B2													
+													WHERE B1.EMAIL = B2.EMAIL AND B1.QUERYKEY = B2.QUERYKEY AND B1.FORWARDORDER = B2.FORWARDORDER) M
+                     WHERE T.EMAIL = M.EMAIL AND T.QUERYKEY = M.QUERYKEY AND M.TOUSERNAME = :username
+                    ORDER BY T.SUBMITDATE DESC
+                ]]>
+            </value>
+        </property>
+    </bean>
+</beans>
